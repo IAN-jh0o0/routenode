@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		3941A1F1281AE30A00458153 /* main.c in Sources */ = {isa = PBXBuildFile; fileRef = 3941A1F0281AE30A00458153 /* main.c */; };
+		3941A1F1281AE30A00458153 /* routenode.c in Sources */ = {isa = PBXBuildFile; fileRef = 3941A1F0281AE30A00458153 /* routenode.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -24,7 +24,7 @@
 
 /* Begin PBXFileReference section */
 		3941A1ED281AE30A00458153 /* routenode */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = routenode; sourceTree = BUILT_PRODUCTS_DIR; };
-		3941A1F0281AE30A00458153 /* main.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = main.c; sourceTree = "<group>"; };
+		3941A1F0281AE30A00458153 /* routenode.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = routenode.c; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -57,7 +57,7 @@
 		3941A1EF281AE30A00458153 /* routenode */ = {
 			isa = PBXGroup;
 			children = (
-				3941A1F0281AE30A00458153 /* main.c */,
+				3941A1F0281AE30A00458153 /* routenode.c */,
 			);
 			path = routenode;
 			sourceTree = "<group>";
@@ -119,7 +119,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				3941A1F1281AE30A00458153 /* main.c in Sources */,
+				3941A1F1281AE30A00458153 /* routenode.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
