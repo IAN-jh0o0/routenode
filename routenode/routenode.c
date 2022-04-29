@@ -21,7 +21,9 @@ void error(char *msg){
 }
 
 void printStatusMessages(int mode,int a,int b){
+    int i;struct node curr;
     clock_gettime(CLOCK_REALTIME, &ts);
+    
     if(mode==1){
         fprintf(stderr,"[%ld] Message sent from Node <port-%d> to Node <port-%d>\n",ts.tv_nsec,a,b);
     }
@@ -29,7 +31,12 @@ void printStatusMessages(int mode,int a,int b){
         fprintf(stderr,"[%ld] Message received at Node <port-%d> from Node <port-%d>\n",ts.tv_nsec,a,b);
     }
     else if(mode==3){
-        fprintf(stderr,"[%ld] Node <port-%d> Routing Table/n- (%d) -> Node %d\n",ts.tv_nsec,a);
+        fprintf(stderr,"[%ld] Node <port-%d> Routing Table\n",ts.tv_nsec,a);
+        for(i=0;i<16;i++){
+            curr=routingTable[i];
+            if(curr.port==0)break;
+            fprintf(stderr,"- (%d) -> Node <port-%d>\n",curr.dist,curr.port);
+        }
     }
 }
 
@@ -57,17 +64,17 @@ void updateRoutingTable(struct node rt[],int fromPort){
         if(rt_curr.port==0)break;if(rt_curr.port==localPort)continue;
         for(j=0;j<16;j++){
             curr=routingTable[j];
-            if(curr.port==0){routingTable[size++]=rt_curr;}
+            if(curr.port==0){routingTable[size++]=rt_curr;break;}
             if(curr.port==rt_curr.port){
-                curr.dist=fmin(curr.dist,d+rt_curr.dist);
-            }
+                fprintf(stderr,"%d\n",d+rt_curr.dist);
+                routingTable[j].dist=(int)fmin(curr.dist,d+rt_curr.dist);break;}
         }
     }
 }
 
 void init(void){
     struct hostent *hp;
-    //get socket
+    
     sock=socket(AF_INET,SOCK_DGRAM,0);
     if(sock<0)error("sock() failed");
     
@@ -86,7 +93,7 @@ void init(void){
 
 void broadcast(void){
     int i;long n;
-    fprintf(stderr,"%lu\n",sizeof(routingTable));
+    
     //for each neighbor, send the routing information
     for(i=0;i<16;i++){
         if(routingTable[i].port==0)break;
@@ -98,15 +105,15 @@ void broadcast(void){
 }
 
 void wait_rcv(void){
-    struct sockaddr_in from;struct node rt[16];
+    long n;struct sockaddr_in from;struct node rt[16];
     bzero(&rt,sizeof(rt));
     
     while(1){
-        long n=recvfrom(sock,rt,1024,0,(struct sockaddr*)&from,&len);
+        n=recvfrom(sock,rt,1024,0,(struct sockaddr*)&from,&len);
         if(n<0)error("recvfrom() failed");
         printStatusMessages(2,localPort,ntohs(from.sin_port));
         updateRoutingTable(rt,ntohs(from.sin_port));
-        printStatusMessages(3,localPort,ntohs(from.sin_port));
+        printStatusMessages(3,localPort,0);
     }
 }
 
