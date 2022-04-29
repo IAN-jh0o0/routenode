@@ -13,7 +13,7 @@
 #include <math.h>
 
 struct node{int port,dist;};
-struct node routingTable[16];int size=0,sock,localPort;struct sockaddr_in my,to;socklen_t len=sizeof(struct sockaddr_in);struct timespec ts;
+struct node routingTable[16];int size=0,sock,localPort,didBC=0;struct sockaddr_in my,to;socklen_t len=sizeof(struct sockaddr_in);struct timespec ts;
 
 void error(char *msg){
     perror(msg);
@@ -66,7 +66,6 @@ void updateRoutingTable(struct node rt[],int fromPort){
             curr=routingTable[j];
             if(curr.port==0){routingTable[size++]=rt_curr;break;}
             if(curr.port==rt_curr.port){
-                fprintf(stderr,"%d\n",d+rt_curr.dist);
                 routingTable[j].dist=(int)fmin(curr.dist,d+rt_curr.dist);break;}
         }
     }
@@ -102,6 +101,7 @@ void broadcast(void){
         if(n<0)error("sendto() failed");
         printStatusMessages(1,localPort,routingTable[i].port);
     }
+    didBC=1;
 }
 
 void wait_rcv(void){
@@ -114,6 +114,7 @@ void wait_rcv(void){
         printStatusMessages(2,localPort,ntohs(from.sin_port));
         updateRoutingTable(rt,ntohs(from.sin_port));
         printStatusMessages(3,localPort,0);
+        if(didBC==0)broadcast();
     }
 }
 
