@@ -11,9 +11,7 @@
 #include <netdb.h>
 #include <sys/time.h>
 
-struct node{
-    int port,dist;
-};
+struct node{int port,dist};
 struct node routingTable[16];int size=0,sock,localPort;struct sockaddr_in my,to;socklen_t len=sizeof(struct sockaddr_in);struct timespec ts;
 
 void error(char *msg){
@@ -38,6 +36,10 @@ void getRoutingTable(int argc,const char **argv){
         n.dist=atoi(argv[++i]);
         routingTable[size++]=n;
     }
+}
+
+void updateRoutingTable(struct node rt[]){
+    
 }
 
 void init(void){
@@ -79,6 +81,7 @@ void wait_rcv(void){
         long n=recvfrom(sock,rt,1024,0,(struct sockaddr*)&from,&len);
         if(n<0)error("recvfrom() failed");
         printStatusMessages(2,localPort,ntohs(from.sin_port));
+        updateRoutingTable(rt);
     }
 }
 
