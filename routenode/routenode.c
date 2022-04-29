@@ -25,13 +25,13 @@ void printStatusMessages(int mode,int a,int b){
     clock_gettime(CLOCK_REALTIME, &ts);
     
     if(mode==1){
-        fprintf(stderr,"[%ld] Message sent from Node <port-%d> to Node <port-%d>\n",ts.tv_nsec,a,b);
+        fprintf(stderr,"[%ld] Message sent from Node <port-%d> to Node <port-%d>\n",ts.tv_nsec/1000,a,b);
     }
     else if(mode==2){
-        fprintf(stderr,"[%ld] Message received at Node <port-%d> from Node <port-%d>\n",ts.tv_nsec,a,b);
+        fprintf(stderr,"[%ld] Message received at Node <port-%d> from Node <port-%d>\n",ts.tv_nsec/1000,a,b);
     }
     else if(mode==3){
-        fprintf(stderr,"[%ld] Node <port-%d> Routing Table\n",ts.tv_nsec,a);
+        fprintf(stderr,"[%ld] Node <port-%d> Routing Table\n",ts.tv_nsec/1000,a);
         for(i=0;i<16;i++){
             curr=routingTable[i];
             if(curr.port==0)break;
@@ -47,6 +47,7 @@ void getRoutingTable(int argc,const char **argv){
         n.dist=atoi(argv[++i]);
         routingTable[size++]=n;
     }
+    printStatusMessages(3,localPort,0);
 }
 
 void updateRoutingTable(struct node rt[],int fromPort){
@@ -64,7 +65,11 @@ void updateRoutingTable(struct node rt[],int fromPort){
         if(rt_curr.port==0)break;if(rt_curr.port==localPort)continue;
         for(j=0;j<16;j++){
             curr=routingTable[j];
-            if(curr.port==0){routingTable[size++]=rt_curr;break;}
+            if(curr.port==0){
+                rt_curr.dist=d+rt_curr.dist;
+                routingTable[size++]=rt_curr;
+                break;
+            }
             if(curr.port==rt_curr.port){
                 routingTable[j].dist=(int)fmin(curr.dist,d+rt_curr.dist);break;}
         }
