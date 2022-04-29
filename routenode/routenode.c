@@ -10,8 +10,9 @@
 #include <string.h>
 #include <netdb.h>
 #include <sys/time.h>
+#include <math.h>
 
-struct node{int port,dist};
+struct node{int port,dist;};
 struct node routingTable[16];int size=0,sock,localPort;struct sockaddr_in my,to;socklen_t len=sizeof(struct sockaddr_in);struct timespec ts;
 
 void error(char *msg){
@@ -27,6 +28,9 @@ void printStatusMessages(int mode,int a,int b){
     else if(mode==2){
         fprintf(stderr,"[%ld] Message received at Node <port-%d> from Node <port-%d>\n",ts.tv_nsec,a,b);
     }
+    else if(mode==3){
+        fprintf(stderr,"[%ld] Node <port-%d> Routing Table/n- (%d) -> Node %d\n",ts.tv_nsec,a);
+    }
 }
 
 void getRoutingTable(int argc,const char **argv){
@@ -38,8 +42,27 @@ void getRoutingTable(int argc,const char **argv){
     }
 }
 
-void updateRoutingTable(struct node rt[]){
+void updateRoutingTable(struct node rt[],int fromPort){
+    int i,j,d=0;struct node rt_curr,curr;
     
+    //find the distance from localPort -> fromPort
+    for(i=0;i<16;i++){
+        curr=routingTable[i];
+        if(curr.port==0)break;
+        if(curr.port==fromPort)d=curr.dist;
+    }
+    //for each toPort in rt, find toPort in routingTable and update the distance
+    for(i=0;i<16;i++){
+        rt_curr=rt[i];
+        if(rt_curr.port==0)break;if(rt_curr.port==localPort)continue;
+        for(j=0;j<16;j++){
+            curr=routingTable[j];
+            if(curr.port==0){routingTable[size++]=rt_curr;}
+            if(curr.port==rt_curr.port){
+                curr.dist=fmin(curr.dist,d+rt_curr.dist);
+            }
+        }
+    }
 }
 
 void init(void){
@@ -61,15 +84,16 @@ void init(void){
     bcopy((char*)hp->h_addr,(char*)&to.sin_addr,hp->h_length);
 }
 
-void broadcast(struct node *rt){
+void broadcast(void){
     int i;long n;
-    
+    fprintf(stderr,"%lu\n",sizeof(routingTable));
     //for each neighbor, send the routing information
-    for(i=0;i<size;i++){
-        to.sin_port=htons(rt[i].port);  //neighbor's port
+    for(i=0;i<16;i++){
+        if(routingTable[i].port==0)break;
+        to.sin_port=htons(routingTable[i].port);  //neighbor's port
         n=sendto(sock,routingTable,1024,0,(struct sockaddr*)&to,len);
         if(n<0)error("sendto() failed");
-        printStatusMessages(1,localPort,rt[i].port);
+        printStatusMessages(1,localPort,routingTable[i].port);
     }
 }
 
@@ -81,7 +105,8 @@ void wait_rcv(void){
         long n=recvfrom(sock,rt,1024,0,(struct sockaddr*)&from,&len);
         if(n<0)error("recvfrom() failed");
         printStatusMessages(2,localPort,ntohs(from.sin_port));
-        updateRoutingTable(rt);
+        updateRoutingTable(rt,ntohs(from.sin_port));
+        printStatusMessages(3,localPort,ntohs(from.sin_port));
     }
 }
 
@@ -90,7 +115,7 @@ int main(int argc,const char **argv){
     init();
     if(strcmp(argv[argc-1],"last")==0){
         getRoutingTable(argc-1,argv);
-        broadcast(routingTable);
+        broadcast();
     }
     else{
         getRoutingTable(argc,argv);
