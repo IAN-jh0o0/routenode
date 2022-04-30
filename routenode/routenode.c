@@ -11,9 +11,10 @@
 #include <netdb.h>
 #include <sys/time.h>
 #include <math.h>
+#include <unistd.h>
 
 struct node{int port,dist;};
-struct node routingTable[16];int size=0,sock,localPort,didBC=0,isUpdated,isAdded;struct sockaddr_in my,to;socklen_t len=sizeof(struct sockaddr_in);struct timespec ts;
+struct node routingTable[16];int size=0,sock,localPort,didBC=0,isUpdated,isAdded,newCost,t=0;struct sockaddr_in my,to;socklen_t len=sizeof(struct sockaddr_in);struct timespec ts;
 
 void error(char *msg){
     perror(msg);
@@ -24,12 +25,8 @@ void printStatusMessages(int mode,int a,int b){
     int i;struct node curr;
     clock_gettime(CLOCK_REALTIME, &ts);
     
-    if(mode==1){
-        fprintf(stderr,"[%ld] Message sent from Node <port-%d> to Node <port-%d>\n",ts.tv_nsec/1000,a,b);
-    }
-    else if(mode==2){
-        fprintf(stderr,"[%ld] Message received at Node <port-%d> from Node <port-%d>\n",ts.tv_nsec/1000,a,b);
-    }
+    if(mode==1)fprintf(stderr,"[%ld] Message sent from Node <port-%d> to Node <port-%d>\n",ts.tv_nsec/1000,a,b);
+    else if(mode==2)fprintf(stderr,"[%ld] Message received at Node <port-%d> from Node <port-%d>\n",ts.tv_nsec/1000,a,b);
     else if(mode==3){
         fprintf(stderr,"[%ld] Node <port-%d> Routing Table\n",ts.tv_nsec/1000,a);
         for(i=0;i<16;i++){
@@ -38,6 +35,8 @@ void printStatusMessages(int mode,int a,int b){
             fprintf(stderr,"- (%d) -> Node <port-%d>\n",curr.dist,curr.port);
         }
     }
+    else if(mode==4)fprintf(stderr,"[%ld] Link value message sent from Node <port-%d> to Node <port-%d>\n",ts.tv_nsec/1000,a,b);
+    else if(mode==5)fprintf(stderr,"[%ld] Link value message received at Node <port-%d> from Node <port-%d>\n",ts.tv_nsec/1000,a,b);
 }
 
 void sortRoutingTable(void){
@@ -99,6 +98,35 @@ void updateRoutingTable(struct node rt[],int fromPort){
     if(isAdded)sortRoutingTable();
 }
 
+void updateRoutingTableAfterSignal(struct node rt[],int fromPort){
+    int i,find,curr;isUpdated=0;
+    
+    for(i=0;i<16;i++)if(rt[i].port==0)break;
+    find=rt[i-1].dist;
+    for(i=0;i<16;i++){
+        curr=routingTable[i].port;
+        if(curr==fromPort){
+            if(routingTable[i].dist!=find){
+                routingTable[i].dist=find;
+                isUpdated=1;
+            }
+            break;
+        }
+    }
+}
+
+void sigHandler1(int signum){
+    long n;
+    
+    routingTable[size-1].dist=newCost;
+    to.sin_port=htons(routingTable[size-1].port);
+    n=sendto(sock,routingTable,1024,0,(struct sockaddr*)&to,len);
+    if(n<0)error("sendto() failed");
+    printStatusMessages(4,localPort,routingTable[size-1].port);
+}
+
+void sigHandler2(int signum){t=2;}
+
 void init(void){
     struct hostent *hp;
     
@@ -139,8 +167,15 @@ void wait_rcv(void){
     while(1){
         n=recvfrom(sock,rt,1024,0,(struct sockaddr*)&from,&len);
         if(n<0)error("recvfrom() failed");
-        printStatusMessages(2,localPort,ntohs(from.sin_port));
-        updateRoutingTable(rt,ntohs(from.sin_port));
+        if(t==0){
+            printStatusMessages(2,localPort,ntohs(from.sin_port));
+            updateRoutingTable(rt,ntohs(from.sin_port));
+        }
+        else{
+            printStatusMessages(5,localPort,ntohs(from.sin_port));
+            updateRoutingTableAfterSignal(rt,ntohs(from.sin_port));
+            t=0;
+        }
         printStatusMessages(3,localPort,0);
         if(didBC==0 || (didBC==1 && isUpdated==1))broadcast();
     }
@@ -149,11 +184,20 @@ void wait_rcv(void){
 int main(int argc,const char **argv){
     localPort=atoi(argv[4]);
     init();
-    if(strcmp(argv[argc-1],"last")==0){
+    if(strcmp(argv[argc-2],"last")==0){
+        newCost=atoi(argv[argc-1]);
+        signal(SIGALRM,sigHandler1);
+        alarm(30);
+        getRoutingTable(argc-2,argv);
+        broadcast();
+    }
+    else if(strcmp(argv[argc-1],"last")==0){
         getRoutingTable(argc-1,argv);
         broadcast();
     }
     else{
+        signal(SIGALRM,sigHandler2);
+        alarm(30);
         getRoutingTable(argc,argv);
     }
     wait_rcv();
