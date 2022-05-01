@@ -10,8 +10,10 @@
 #include <string.h>
 #include <netdb.h>
 #include <sys/time.h>
+#include <time.h>
 #include <math.h>
 #include <unistd.h>
+#include <signal.h>
 
 struct node{int port,dist;};
 struct node routingTable[16],cpy[16];int size=0,sock,localPort,didBC=0,isUpdated,isAdded,newCost,ARGC;struct sockaddr_in my,to;socklen_t len=sizeof(struct sockaddr_in);struct timespec ts;char **ARGV;
@@ -77,7 +79,8 @@ void updateRoutingTable(struct node rt[],int fromPort){
     }
     for(i=0;i<16;i++){
         rt_curr=rt[i];
-        if(rt_curr.port==0)break;if(rt_curr.port==localPort)continue;
+        if(rt_curr.port==0)break;
+        if(rt_curr.port==localPort)continue;
         for(j=0;j<16;j++){
             curr=routingTable[j];
             if(curr.port==0){
@@ -165,7 +168,6 @@ void wait_rcv(void){
             if(n<0)error("recvfrom() failed");
             printStatusMessages(5,localPort,ntohs(from.sin_port));
             updateRoutingTableAfterSignal(rt,ntohs(from.sin_port));
-            printStatusMessages(3,localPort,0);
         }
         else{
             printStatusMessages(2,localPort,ntohs(from.sin_port));
@@ -218,7 +220,6 @@ int main(int argc,char **argv){
         signal(SIGALRM,sigHandler);
         alarm(30);
         getRoutingTable(argc-2,argv);
-        fprintf(stderr,"%d\n",size);
         printStatusMessages(3,localPort,0);
         broadcast();
     }
