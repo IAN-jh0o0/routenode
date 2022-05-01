@@ -14,7 +14,7 @@
 #include <unistd.h>
 
 struct node{int port,dist;};
-struct node routingTable[16];int size=0,sock,localPort,didBC=0,isUpdated,isAdded,newCost,t=0;struct sockaddr_in my,to;socklen_t len=sizeof(struct sockaddr_in);struct timespec ts;
+struct node routingTable[16],cpy[16];int size=0,sock,localPort,didBC=0,isUpdated,isAdded,newCost,ARGC;struct sockaddr_in my,to;socklen_t len=sizeof(struct sockaddr_in);struct timespec ts;char **ARGV;
 
 void error(char *msg){
     perror(msg);
@@ -37,6 +37,7 @@ void printStatusMessages(int mode,int a,int b){
     }
     else if(mode==4)fprintf(stderr,"[%ld] Link value message sent from Node <port-%d> to Node <port-%d>\n",ts.tv_nsec/1000,a,b);
     else if(mode==5)fprintf(stderr,"[%ld] Link value message received at Node <port-%d> from Node <port-%d>\n",ts.tv_nsec/1000,a,b);
+    else if(mode==6)fprintf(stderr,"[%ld] Cost from Node <port-%d> to Node <port-%d> is updated to %d\n",ts.tv_nsec/1000,a,b,newCost);
 }
 
 void sortRoutingTable(void){
@@ -55,8 +56,8 @@ void sortRoutingTable(void){
     }
 }
 
-void getRoutingTable(int argc,const char **argv){
-    struct node n;
+void getRoutingTable(int argc,char **argv){
+    struct node n;size=0;bzero(&routingTable,sizeof(routingTable));
     
     for(int i=5;i<argc;i++){
         n.port=atoi(argv[i]);
@@ -64,7 +65,6 @@ void getRoutingTable(int argc,const char **argv){
         routingTable[size++]=n;
     }
     sortRoutingTable();
-    printStatusMessages(3,localPort,0);
 }
 
 void updateRoutingTable(struct node rt[],int fromPort){
@@ -115,17 +115,12 @@ void updateRoutingTableAfterSignal(struct node rt[],int fromPort){
     }
 }
 
-void sigHandler1(int signum){
-    long n;
+void freeARGV(void){
+    int i;
     
-    routingTable[size-1].dist=newCost;
-    to.sin_port=htons(routingTable[size-1].port);
-    n=sendto(sock,routingTable,1024,0,(struct sockaddr*)&to,len);
-    if(n<0)error("sendto() failed");
-    printStatusMessages(4,localPort,routingTable[size-1].port);
+    for(i=5;i<ARGC;i++)free(ARGV[i]);
+    free(ARGV);
 }
-
-void sigHandler2(int signum){t=2;}
 
 void init(void){
     struct hostent *hp;
@@ -163,42 +158,82 @@ void broadcast(void){
 void wait_rcv(void){
     long n;struct sockaddr_in from;struct node rt[16];
     bzero(&rt,sizeof(rt));
-    
     while(1){
         n=recvfrom(sock,rt,1024,0,(struct sockaddr*)&from,&len);
-        if(n<0)error("recvfrom() failed");
-        if(t==0){
-            printStatusMessages(2,localPort,ntohs(from.sin_port));
-            updateRoutingTable(rt,ntohs(from.sin_port));
+        if(strcmp((char *)rt,"Reset routingTable")==0){
+            didBC=0;
+            getRoutingTable(ARGC,ARGV);
         }
-        else{
+        else if(strcmp((char *)rt,"Link Message")==0){
+            n=recvfrom(sock,rt,1024,0,(struct sockaddr*)&from,&len);
+            if(n<0)error("recvfrom() failed");
             printStatusMessages(5,localPort,ntohs(from.sin_port));
             updateRoutingTableAfterSignal(rt,ntohs(from.sin_port));
-            t=0;
+            printStatusMessages(3,localPort,0);
         }
-        printStatusMessages(3,localPort,0);
-        if(didBC==0 || (didBC==1 && isUpdated==1))broadcast();
+        else{
+            printStatusMessages(2,localPort,ntohs(from.sin_port));
+            updateRoutingTable(rt,ntohs(from.sin_port));
+            printStatusMessages(3,localPort,0);
+            if(didBC==0 || isUpdated==1)broadcast();
+        }
     }
 }
 
-int main(int argc,const char **argv){
+void sigHandler(int signum){
+    int i;long n;char *buf;
+    
+    for(i=0;i<16;i++){
+        if(routingTable[i].port==0)break;
+        buf="Reset routingTable";
+        to.sin_port=htons(routingTable[i].port);
+        n=sendto(sock,buf,1024,0,(struct sockaddr*)&to,len);
+        if(n<0)error("sendto() failed");
+    }
+    getRoutingTable(ARGC-2,ARGV);
+    routingTable[size-1].dist=newCost;
+    printStatusMessages(6,localPort,routingTable[size-1].port);
+    to.sin_port=htons(routingTable[size-1].port);
+    n=sendto(sock,"Link Message",1024,0,(struct sockaddr*)&to,len);
+    n=sendto(sock,routingTable,1024,0,(struct sockaddr*)&to,len);
+    broadcast();
+}
+
+void intHandler(int signum){
+    freeARGV();
+    exit(1);
+}
+
+int main(int argc,char **argv){
+    int i;ARGC=argc;
+    ARGV=malloc((argc+1)*sizeof(*ARGV));
+    for(i=0;i<argc;i++){
+        size_t l=strlen(argv[i])+1;
+        ARGV[i]=malloc(l);
+        memcpy(ARGV[i],argv[i],l);
+    }
+    ARGV[argc]=NULL;
+    signal(SIGINT,intHandler);
     localPort=atoi(argv[4]);
     init();
+    
     if(strcmp(argv[argc-2],"last")==0){
         newCost=atoi(argv[argc-1]);
-        signal(SIGALRM,sigHandler1);
+        signal(SIGALRM,sigHandler);
         alarm(30);
         getRoutingTable(argc-2,argv);
+        fprintf(stderr,"%d\n",size);
+        printStatusMessages(3,localPort,0);
         broadcast();
     }
     else if(strcmp(argv[argc-1],"last")==0){
         getRoutingTable(argc-1,argv);
+        printStatusMessages(3,localPort,0);
         broadcast();
     }
     else{
-        signal(SIGALRM,sigHandler2);
-        alarm(30);
         getRoutingTable(argc,argv);
+        printStatusMessages(3,localPort,0);
     }
     wait_rcv();
     
