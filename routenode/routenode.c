@@ -70,13 +70,11 @@ void getRoutingTable(int argc,char **argv){
 void updateRoutingTable(struct node rt[],int fromPort){
     int i,j,d=0;struct node rt_curr,curr;isUpdated=0;isAdded=0;
     
-    //find the distance from startNode -> midNode
     for(i=0;i<16;i++){
         curr=routingTable[i];
         if(curr.port==0)break;
         if(curr.port==fromPort)d=curr.dist;
     }
-    //for each endNode in rt, find endNode in routingTable and update the distance(startNode -> endNode or startNode -> midNode -> endNode)
     for(i=0;i<16;i++){
         rt_curr=rt[i];
         if(rt_curr.port==0)break;if(rt_curr.port==localPort)continue;
@@ -128,14 +126,12 @@ void init(void){
     sock=socket(AF_INET,SOCK_DGRAM,0);
     if(sock<0)error("sock() failed");
     
-    //my sockaddr_in
     bzero(&my,len);
     my.sin_family=AF_INET;
     my.sin_addr.s_addr=INADDR_ANY;
     my.sin_port=htons(localPort);
     if(bind(sock,(struct sockaddr*)&my,len)<0)error("bind() failed");
     
-    //to sockaddr_in (only handle IP address)
     to.sin_family=AF_INET;
     hp=gethostbyname("localhost");
     bcopy((char*)hp->h_addr,(char*)&to.sin_addr,hp->h_length);
@@ -144,7 +140,6 @@ void init(void){
 void broadcast(void){
     int i;long n;
     
-    //for each neighbor, send the routing information
     for(i=0;i<16;i++){
         if(routingTable[i].port==0)break;
         to.sin_port=htons(routingTable[i].port);  //neighbor's port
@@ -158,6 +153,7 @@ void broadcast(void){
 void wait_rcv(void){
     long n;struct sockaddr_in from;struct node rt[16];
     bzero(&rt,sizeof(rt));
+    
     while(1){
         n=recvfrom(sock,rt,1024,0,(struct sockaddr*)&from,&len);
         if(strcmp((char *)rt,"Reset routingTable")==0){
